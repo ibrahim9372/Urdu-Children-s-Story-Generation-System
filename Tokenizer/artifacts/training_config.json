@@ -1,0 +1,11 @@
+{
+  "vocab_size": 250,
+  "data_fraction": 1.0,
+  "corpus_path": "Data/urdu_tokenizer_training.txt",
+  "training_time_seconds": 25.215616703033447,
+  "stats": {
+    "vocab_size": 250,
+    "num_merges": 192,
+    "unique_words": 29936
+  }
+}

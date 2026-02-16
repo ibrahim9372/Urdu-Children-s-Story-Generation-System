@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  /* Cyberpunk Red Theme */
+  --bg-primary: #000000;
+  /* Pure Black */
+  --bg-sidebar: #0a0a0a;
+  --bg-input: #111111;
+  --text-primary: #FFFFFF;
+  --text-secondary: #999999;
+  --border-subtle: #333333;
+  --msg-user-bg: #111111;
+  --msg-bot-bg: #000000;
+  --font-urdu: 'Noto Nastaliq Urdu', serif;
+  --font-latin: 'Inter', sans-serif;
+  --accent-color: #FF0033;
+  /* Neon Red */
+  --accent-glow: rgba(255, 0, 51, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-latin);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FF0033;
+  /* Red Scrollbar Hover */
+}
+
+/* Typography Utility */
+.urdu-text {
+  font-family: var(--font-urdu);
+  direction: rtl;
+  line-height: 2.2;
+  font-size: 1.1rem;
+}
+
+.latin-text {
+  font-family: var(--font-latin);
+}

@@ -1,13 +1,26 @@
 # Backend - Folder Context
 
-This folder is reserved for Phase IV implementation: inference microservice.
+This folder contains Phase IV implementation: FastAPI inference microservice.
 
-## Planned Contents
-- FastAPI app
-- `POST /generate` endpoint implementation
-- request/response schemas and validation
-- model loading and runtime generation wiring
-- backend tests
+## Current Contents
+- `main.py`: FastAPI app with `/generate` and `/health` endpoints
+- `schemas.py`: Pydantic request/response models
+- `model_loader.py`: Model loading utilities
+- `generator.py`: Story generation logic
+- `requirements.txt`: Python dependencies
 
 ## Role in Project
-Exposes model inference as a service for frontend consumption and deployment.
+Exposes model inference as a REST API service for frontend consumption.
+
+## Running the Backend
+
+```bash
+cd Backend
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+## API Endpoints
+
+- `GET /health` - Health check
+- `POST /generate` - Generate story continuation from Urdu prefix

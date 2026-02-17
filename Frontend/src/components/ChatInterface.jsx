@@ -30,10 +30,10 @@ const ChatInterface = () => {
         setIsTyping(true);
 
         try {
-            const responseText = await generateText(text);
+            const response = await generateText(text);
             const botMsg = {
                 id: Date.now() + 1,
-                text: responseText,
+                text: response.story,
                 sender: 'bot',
                 timestamp: new Date()
             };

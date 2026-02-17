@@ -2,19 +2,44 @@
 
 **Project:** Urdu Children's Story Generation System  
 **Date:** 2026-02-17  
-**Scope:** Phases I–V (Phase VI not yet implemented)
+**Scope:** Phases I–V (Phase VI not yet implemented)  
+**Revision:** R2 — Phase 4 & 5 bugs fixed, visual overhaul applied
 
 ---
 
 ## Executive Summary
 
-The codebase provides a skeleton implementation across Phases I–V but has **significant architectural, logic, and requirements-compliance bugs** that would prevent the system from working correctly end-to-end. The most critical issues are in Phase II (Tokenizer) and Phase III (Trigram LM), where fundamental misunderstandings of BPE vocabulary size, the special-token encoding scheme, and the contract between the tokenizer and the LM result in a broken generation pipeline. The Backend duplicates generator logic instead of reusing the model module cleanly, and the Frontend lacks any error feedback UI and has no streaming/step-wise output as required.
+The codebase provides a skeleton implementation across Phases I–V but has **significant architectural, logic, and requirements-compliance bugs** that would prevent the system from working correctly end-to-end. The most critical issues are in Phase II (Tokenizer) and Phase III (Trigram LM), where fundamental misunderstandings of BPE vocabulary size, the special-token encoding scheme, and the contract between the tokenizer and the LM result in a broken generation pipeline.
 
-**Total bugs found: 38**  
-- CRITICAL: 7  
-- HIGH: 12  
-- MEDIUM: 13  
-- LOW: 6
+### Phase 4 & 5 Fix Status (R2)
+
+All Backend (Phase 4) and Frontend (Phase 5) bugs have been **resolved** in this revision:
+
+| Bug ID | Status | Fix Summary |
+|--------|--------|-------------|
+| **4A-01 / XA-03** | ✅ FIXED | `generator.py` rewritten as standalone module with own logic; no longer duplicates `Trigram_LM/trigram_model.py` |
+| **4A-02 / XA-01** | ✅ FIXED | New `bpe_tokenizer.py` module provides `encode()`/`decode()` — prefix is BPE-encoded before trigram lookup |
+| **4A-03** | ✅ FIXED | `max_length` field added to `GenerateRequest` schema (default 150, range 1–1000) |
+| **4A-04** | ✅ FIXED | CORS origins read from `ALLOWED_ORIGINS` env var (comma-separated), defaults include localhost |
+| **4A-05** | ✅ FIXED | Dead `load_tokenizer_vocab()` removed from `model_loader.py` |
+| **4A-06** | ✅ FIXED | Pydantic `field_validator` checks prefix for Urdu characters (U+0600–U+06FF) |
+| **4A-07** | ✅ FIXED | New `POST /generate/stream` SSE endpoint yields tokens one at a time |
+| **5A-01** | ✅ FIXED | `api.js` uses `import.meta.env.VITE_API_URL`; `.env` and `.env.example` added |
+| **5A-02** | ✅ FIXED | Error catch displays Urdu error message in chat |
+| **5A-03** | ✅ FIXED | Monotonically increasing counter replaces `Date.now()` for message IDs |
+| **5A-04** | ✅ FIXED | `generateTextStream()` in `api.js` consumes SSE; `ChatInterface` streams tokens into bot message |
+| **5A-05** | ✅ FIXED | Page title changed to "اردو بچوں کی کہانیاں - Urdu Children's Stories" |
+| **5A-06** | ✅ FIXED | `<html lang="ur" dir="rtl">` applied |
+
+Additionally, a **full visual overhaul** was applied (Moonlit Palace / چاندنی محل theme):
+- Animated star field canvas background with crescent moon
+- Golden lantern header with Urdu calligraphy
+- Indigo + gold design system
+- Ornate message bubbles with corner ornaments
+- Streaming quill-cursor animation
+- Themed prompt cards with hover effects
+
+**Remaining bugs (Phases 1–3, 6): 25 unfixed** (outside scope of this revision).
 
 ---
 
@@ -36,15 +61,16 @@ Trigram_LM/ (Phase III)
   ngram_counter.py  ──reads final_token.json──►  artifacts/{unigrams,bigrams,trigrams}.pkl
   trigram_model.py  ──reads pkl files──►         (standalone generation script)
 
-Backend/ (Phase IV)
-  main.py          FastAPI app
-  schemas.py       Pydantic models
-  model_loader.py  loads pkl + tokenizer artifacts
-  generator.py     story generation (duplicate of trigram_model.py)
+Backend/ (Phase IV) — REVISED R2
+  main.py          FastAPI app (+ /generate/stream SSE endpoint)
+  schemas.py       Pydantic models (+ max_length, Urdu validation)
+  model_loader.py  loads pkl + builds sparse indexes
+  generator.py     story generation with BPE encode() integration
+  bpe_tokenizer.py NEW — BPE encode()/decode() from merge rules
 
-Frontend/ (Phase V)
-  React 19 + Vite + Tailwind chat UI
-  api.js  ──POST /generate──►  Backend
+Frontend/ (Phase V) — REVISED R2
+  React 19 + Vite + Tailwind chat UI (Moonlit Palace theme)
+  api.js  ──SSE stream──►  Backend /generate/stream
 
 Deployment/ (Phase VI)
   empty (folder_context.md only)
@@ -134,13 +160,13 @@ Deployment/ (Phase VI)
 
 | Bug ID | File | Function / Line | Bug Type | Severity | Description | Impact | Root Cause | Solution |
 |--------|------|-----------------|----------|----------|-------------|--------|------------|----------|
-| **4A-01** | `generator.py` | `generate_story()` | Architecture / Duplication | **HIGH** | `generator.py` is a near-copy of `trigram_model.py` with the same generation logic, same interpolation function, same bugs. Code is duplicated instead of importing from the existing module. | Bug fixes must be applied in two places; drift between implementations. | Copy-paste development. | Import generation logic from `Trigram_LM.trigram_model` or extract shared logic into a common module. |
-| **4A-02** | `generator.py` | `generate_story()` | Logic Error | **CRITICAL** | Same seed-word bug as 3A-01: `seed_w1 + "</w>"` without BPE encoding. The user's prefix is split on whitespace and the first two words get `</w>` appended, producing tokens that don't exist in the trained vocabulary. | Generation ignores user input; falls back to random unigram sampling. | No BPE tokenizer integration. | BPE-encode the prefix before seeding the trigram generator. |
-| **4A-03** | `main.py` | `generate()` endpoint | Missing Feature | **MEDIUM** | The endpoint only uses the first 2 words of the prefix. The API spec says "Input: prefix string, max-length" but there is no `max_length` parameter in `GenerateRequest`. Words beyond the first two in the prefix are silently ignored. | Users cannot control generation length; extra prefix words are discarded. | Incomplete schema definition. | Add `max_length: int = Field(150, ge=1, le=1000)` to `GenerateRequest` and pass it through. |
-| **4A-04** | `main.py` | CORS middleware | Configuration | **MEDIUM** | `allow_origins` only permits `localhost:5173` and `127.0.0.1:5173`. After deployment (Phase VI), the Vercel frontend URL will be blocked. | Frontend cannot communicate with backend after deployment. | Hardcoded development-only origins. | Use environment variable for allowed origins; add the production URL. |
-| **4A-05** | `model_loader.py` | `load_tokenizer_vocab()` | Dead Code | **LOW** | This function loads `final_token.json` but is never called anywhere. It returns the full translated corpus (a list of tokens), not a usable vocabulary or encode/decode interface. | Unused code; misleading function name suggests it loads a vocabulary but actually loads a token stream. | Incomplete implementation. | Either remove or implement proper tokenizer loading with encode/decode. |
-| **4A-06** | `schemas.py` | `GenerateRequest` | Missing Validation | **MEDIUM** | No validation that the prefix contains Urdu text. A user can send English text, emoji, or arbitrary strings. The model will fail silently (tokens won't match vocabulary) and return random text. | Poor user experience; no useful error message for invalid input. | Missing input validation. | Add a validator that checks for Urdu character content. |
-| **4A-07** | `main.py` | `generate()` endpoint | Missing Feature | **MEDIUM** | The spec requires "streaming or step-wise story completion (just like chatGPT)." The endpoint returns a single JSON response with the complete story. No SSE, WebSocket, or chunked transfer support. | No streaming capability; the frontend cannot display incremental generation. | Backend not designed for streaming. | Implement `StreamingResponse` with SSE or WebSocket for token-by-token delivery. |
+| **4A-01** | `generator.py` | `generate_story()` | Architecture / Duplication | **HIGH** | ✅ **FIXED (R2)** — `generator.py` fully rewritten as standalone module with its own interpolated generation logic; no longer duplicates `Trigram_LM/trigram_model.py`. ~~`generator.py` is a near-copy of `trigram_model.py` with the same generation logic, same interpolation function, same bugs. Code is duplicated instead of importing from the existing module.~~ | Bug fixes must be applied in two places; drift between implementations. | Copy-paste development. | Import generation logic from `Trigram_LM.trigram_model` or extract shared logic into a common module. |
+| **4A-02** | `generator.py` | `generate_story()` | Logic Error | **CRITICAL** | ✅ **FIXED (R2)** — New `bpe_tokenizer.py` module provides `encode()`/`decode()` functions; user prefix is BPE-encoded before trigram lookup. ~~Same seed-word bug as 3A-01.~~ | Generation ignores user input; falls back to random unigram sampling. | No BPE tokenizer integration. | BPE-encode the prefix before seeding the trigram generator. |
+| **4A-03** | `main.py` | `generate()` endpoint | Missing Feature | **MEDIUM** | ✅ **FIXED (R2)** — `max_length` field added to `GenerateRequest` schema (default 150, range 1–1000). ~~No `max_length` parameter in `GenerateRequest`.~~ | Users cannot control generation length; extra prefix words are discarded. | Incomplete schema definition. | Add `max_length: int = Field(150, ge=1, le=1000)` to `GenerateRequest` and pass it through. |
+| **4A-04** | `main.py` | CORS middleware | Configuration | **MEDIUM** | ✅ **FIXED (R2)** — CORS origins read from `ALLOWED_ORIGINS` env var (comma-separated); defaults include localhost dev origins. ~~Hardcoded `localhost:5173` and `127.0.0.1:5173` only.~~ | Frontend cannot communicate with backend after deployment. | Hardcoded development-only origins. | Use environment variable for allowed origins; add the production URL. |
+| **4A-05** | `model_loader.py` | `load_tokenizer_vocab()` | Dead Code | **LOW** | ✅ **FIXED (R2)** — Dead `load_tokenizer_vocab()` function removed; `model_loader.py` fully rewritten. ~~Function loaded `final_token.json` but was never called.~~ | Unused code; misleading function name suggests it loads a vocabulary but actually loads a token stream. | Incomplete implementation. | Either remove or implement proper tokenizer loading with encode/decode. |
+| **4A-06** | `schemas.py` | `GenerateRequest` | Missing Validation | **MEDIUM** | ✅ **FIXED (R2)** — Pydantic `@field_validator` checks prefix for at least one Urdu character (U+0600–U+06FF). ~~No validation that the prefix contains Urdu text.~~ | Poor user experience; no useful error message for invalid input. | Missing input validation. | Add a validator that checks for Urdu character content. |
+| **4A-07** | `main.py` | `generate()` endpoint | Missing Feature | **MEDIUM** | ✅ **FIXED (R2)** — New `POST /generate/stream` SSE endpoint yields decoded tokens one at a time via `sse-starlette`. ~~No SSE, WebSocket, or chunked transfer support.~~ | No streaming capability; the frontend cannot display incremental generation. | Backend not designed for streaming. | Implement `StreamingResponse` with SSE or WebSocket for token-by-token delivery. |
 
 ---
 
@@ -160,12 +186,12 @@ Deployment/ (Phase VI)
 
 | Bug ID | File | Function / Line | Bug Type | Severity | Description | Impact | Root Cause | Solution |
 |--------|------|-----------------|----------|----------|-------------|--------|------------|----------|
-| **5A-01** | `api.js` | `API_BASE_URL` | Configuration | **CRITICAL** | Hardcoded `http://localhost:8000`. No environment variable or build-time configuration. After deployment, the frontend will still try to reach `localhost:8000` which won't exist on the user's machine. | Frontend completely non-functional in production. | No environment-based configuration. | Use `import.meta.env.VITE_API_URL` or similar. |
-| **5A-02** | `ChatInterface.jsx` | `handleSendMessage()` | Error Handling | **HIGH** | The `catch` block logs the error to console but shows nothing to the user. No error message is displayed in the chat. The typing indicator is dismissed, and the user sees nothing — they don't know the request failed. | Silent failure; terrible UX. | Missing error state UI. | Add an error message to the messages list (e.g., "Generation failed. Please try again."). |
-| **5A-03** | `ChatInterface.jsx` | Message IDs | Logic Error | **MEDIUM** | `id: Date.now()` for user message and `id: Date.now() + 1` for bot message. If two messages are sent within the same millisecond (unlikely but possible with fast clicks), IDs collide. React will warn about duplicate keys. | Potential React rendering bugs with duplicate keys. | Using timestamp as unique ID. | Use a proper UUID generator or a monotonically increasing counter. |
-| **5A-04** | `ChatInterface.jsx` / `api.js` | N/A | Missing Feature | **HIGH** | No streaming/step-wise display. The spec requires "streaming or step-wise story completion (just like chatGPT)." The current implementation waits for the full response and displays it all at once. | Does not meet requirements. | Neither backend nor frontend implements streaming. | Implement SSE consumption in `api.js` and character-by-character or token-by-token rendering in `Message.jsx`. |
-| **5A-05** | `index.html` | `<title>` | Code Quality | **LOW** | Page title is "frontend" instead of something meaningful like "Urdu Story Generator". | Unprofessional appearance. | Boilerplate not updated. | Change to `<title>Urdu Children's Story Generator</title>`. |
-| **5A-06** | `index.html` | `<html lang="en">` | Accessibility | **LOW** | The page language is set to "en" (English) but the primary content is Urdu. | Accessibility tools and screen readers will use incorrect language model. | Boilerplate not updated. | Change to `<html lang="ur" dir="rtl">` or use a mixed-language approach. |
+| **5A-01** | `api.js` | `API_BASE_URL` | Configuration | **CRITICAL** | ✅ **FIXED (R2)** — `api.js` now reads `import.meta.env.VITE_API_URL`; `.env` and `.env.example` were added and documented. ~~Hardcoded `http://localhost:8000`. No environment variable or build-time configuration.~~ | Frontend completely non-functional in production. | No environment-based configuration. | Use `import.meta.env.VITE_API_URL` or similar. |
+| **5A-02** | `ChatInterface.jsx` | `handleSendMessage()` | Error Handling | **HIGH** | ✅ **FIXED (R2)** — Errors are surfaced in the chat UI with an Urdu-friendly message and typing indicator is cleared. ~~The `catch` block logs the error to console but shows nothing to the user.~~ | Silent failure; terrible UX. | Missing error state UI. | Add an error message to the messages list (e.g., "Generation failed. Please try again."). |
+| **5A-03** | `ChatInterface.jsx` | Message IDs | Logic Error | **MEDIUM** | ✅ **FIXED (R2)** — `Date.now()` IDs replaced by a monotonic `uid()` counter to guarantee unique keys. ~~`id: Date.now()` for user message and `id: Date.now() + 1` for bot message.~~ | Potential React rendering bugs with duplicate keys. | Using timestamp as unique ID. | Use a proper UUID generator or a monotonically increasing counter. |
+| **5A-04** | `ChatInterface.jsx` / `api.js` | N/A | Missing Feature | **HIGH** | ✅ **FIXED (R2)** — End-to-end SSE streaming implemented; `generateTextStream()` consumes server SSE and `Message.jsx` renders token-by-token with a quill cursor. ~~No streaming/step-wise display.~~ | Does not meet requirements. | Neither backend nor frontend implements streaming. | Implement SSE consumption in `api.js` and character-by-character or token-by-token rendering in `Message.jsx`. |
+| **5A-05** | `index.html` | `<title>` | Code Quality | **LOW** | ✅ **FIXED (R2)** — Page title updated to "اردو بچوں کی کہانیاں - Urdu Children's Stories". ~~Page title is "frontend".~~ | Unprofessional appearance. | Boilerplate not updated. | Change to `<title>Urdu Children's Story Generator</title>`. |
+| **5A-06** | `index.html` | `<html lang="en">` | Accessibility | **LOW** | ✅ **FIXED (R2)** — `lang="ur" dir="rtl"` applied site-wide for correct RTL layout and screen-reader semantics. ~~Page language is set to "en".~~ | Accessibility tools and screen readers will use incorrect language model. | Boilerplate not updated. | Change to `<html lang="ur" dir="rtl">` or use a mixed-language approach. |
 
 ---
 
@@ -185,9 +211,9 @@ Deployment/ (Phase VI)
 
 | Bug ID | Area | Bug Type | Severity | Description | Solution |
 |--------|------|----------|----------|-------------|----------|
-| **XA-01** | Tokenizer ↔ Trigram LM | Integration Failure | **CRITICAL** | The trigram model is trained on BPE sub-tokens (from `final_token.json`), but at generation time, seed words are raw full words with `</w>` appended. There is no BPE encoding step in the generation pipeline. The entire generation pipeline is fundamentally broken because the input representation doesn't match the training representation. | Build a proper BPE `encode()` function and call it in the generation pipeline before trigram lookup. |
+| **XA-01** | Tokenizer ↔ Trigram LM | Integration Failure | **CRITICAL** | ✅ **FIXED (R2)** — Implemented `Backend/bpe_tokenizer.py` (BPE `encode()`/`decode()`) and integrated it into the generation pipeline so seed prefixes are tokenized correctly before trigram lookup. ~~The trigram model was trained on BPE sub-tokens but generation used raw words.~~ | Build a proper BPE `encode()` function and call it in the generation pipeline before trigram lookup. |
 | **XA-02** | Special Tokens | Design Flaw | **HIGH** | The `<EOS>`, `<EOP>`, `<EOT>` tokens are multi-character ASCII strings that BPE can split. They should be single Unicode codepoints reserved before BPE training. This issue propagates through every phase. | Use Private Use Area codepoints (U+E000–U+E002); update all files accordingly. |
-| **XA-03** | Backend ↔ Trigram_LM | Code Duplication | **MEDIUM** | `Backend/generator.py` duplicates `Trigram_LM/trigram_model.py` almost verbatim. Both have the same bugs. | Create a shared module or have Backend import from Trigram_LM. |
+| **XA-03** | Backend ↔ Trigram_LM | Code Duplication | **MEDIUM** | ✅ **FIXED (R2)** — `Backend/generator.py` rewritten and duplication removed; generator is now robust and self-contained. ~~`Backend/generator.py` duplicated `Trigram_LM/trigram_model.py`.~~ | Create a shared module or have Backend import from Trigram_LM. |
 | **XA-04** | No Tests | Quality | **MEDIUM** | Zero test files anywhere in the project. No unit tests, no integration tests, no smoke tests. | Add at minimum: tokenizer round-trip test, trigram probability test, API endpoint test. |
 
 ---
@@ -196,12 +222,12 @@ Deployment/ (Phase VI)
 
 | Severity | Count | Bug IDs |
 |----------|-------|---------|
-| **CRITICAL** | 7 | 1A-01, 2A-01, 3A-01, 3A-02, 4A-02, 5A-01, XA-01 |
-| **HIGH** | 12 | 1A-02, 1A-10, 2A-02, 2A-03, 2A-05, 3A-03, 3A-05, 3A-08, 4A-01, 5A-02, 5A-04, XA-02 |
-| **MEDIUM** | 13 | 1A-03, 1A-04, 1A-05, 1A-06, 1A-08, 2A-04, 3A-06, 3A-09, 4A-03, 4A-04, 4A-06, 4A-07, 5A-03 |
-| **LOW** | 6 | 1A-07, 1A-09, 2A-06, 3A-07, 5A-05, 5A-06 |
+| **CRITICAL** | 4 | 1A-01, 2A-01, 3A-01, 3A-02 |
+| **HIGH** | 9 | 1A-02, 1A-10, 2A-02, 2A-03, 2A-05, 3A-03, 3A-05, 3A-08, XA-02 |
+| **MEDIUM** | 8 | 1A-03, 1A-04, 1A-05, 1A-06, 1A-08, 2A-04, 3A-06, 3A-09 |
+| **LOW** | 4 | 1A-07, 1A-09, 2A-06, 3A-07 |
 
-*Note: Phase VI missing deliverables (6A-01, 6A-02, 6A-03) and cross-cutting issues (XA-01 to XA-04) are counted separately above.*
+*Note: Phase VI missing deliverables (6A-01, 6A-02, 6A-03) and remaining cross-cutting issues (XA-02, XA-04) are counted separately above.*
 
 ---
 

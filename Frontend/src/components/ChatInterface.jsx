@@ -1,115 +1,194 @@
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Message from './Message';
 import InputArea from './InputArea';
-import { generateText } from '../utils/api';
-import { Sparkles } from 'lucide-react';
+import { generateTextStream } from '../utils/api';
+import { useTheme } from '../context/ThemeContext';
+
+// ---------------------------------------------------------------------------
+// Monotonic ID generator (fixes 5A-03)
+// ---------------------------------------------------------------------------
+let _nextId = 1;
+const uid = () => _nextId++;
+
+// Card accent characters — culturally appropriate
+const cardAccents = ['✦', '☽', '◆', '✧'];
 
 const ChatInterface = () => {
-    const [messages, setMessages] = useState([]); // Start empty to show Welcome Screen
-    const [isTyping, setIsTyping] = useState(false);
-    const messagesEndRef = useRef(null);
+  const [messages, setMessages] = useState([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
+  const messagesEndRef = useRef(null);
+  // track the id of the currently-streaming bot message
+  const streamMsgId = useRef(null);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
+  // -----------------------------------------------------------------------
+  // Send & stream
+  // -----------------------------------------------------------------------
+  const handleSendMessage = async (text) => {
+    // 1. Append user message
+    const userMsg = {
+      id: uid(),
+      text,
+      sender: 'user',
+      timestamp: new Date(),
     };
+    setMessages((prev) => [...prev, userMsg]);
+    setIsGenerating(true);
 
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages, isTyping]);
-
-    const handleSendMessage = async (text) => {
-        const userMsg = {
-            id: Date.now(),
-            text: text,
-            sender: 'user',
-            timestamp: new Date()
-        };
-
-        setMessages(prev => [...prev, userMsg]);
-        setIsTyping(true);
-
-        try {
-            const response = await generateText(text);
-            const botMsg = {
-                id: Date.now() + 1,
-                text: response.story,
-                sender: 'bot',
-                timestamp: new Date()
-            };
-
-            setIsTyping(false);
-            setMessages(prev => [...prev, botMsg]);
-        } catch (error) {
-            console.error("Error generating text:", error);
-            setIsTyping(false);
-        }
+    // 2. Create a placeholder bot message for streaming
+    const botId = uid();
+    streamMsgId.current = botId;
+    const botMsg = {
+      id: botId,
+      text: '',
+      sender: 'bot',
+      timestamp: new Date(),
+      isStreaming: true,
     };
+    setMessages((prev) => [...prev, botMsg]);
 
-    const examplePrompts = [
-        "ایک دفعہ کا ذکر ہے کہ ایک بادشاہ...",
-        "جنگل میں ایک شیر اور چوہا...",
-        "صبح کی سیر کے فائدے...",
-        "لاہور ایک تاریخی شہر ہے..."
-    ];
+    try {
+      // 3. Stream tokens in via SSE (fixes 5A-04)
+      await generateTextStream(text, (token) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === botId ? { ...m, text: m.text + token } : m
+          )
+        );
+      });
 
-    return (
-        <div className="flex flex-col h-full w-full max-w-4xl mx-auto relative bg-[#000000]">
-            {/* Messages Container */}
-            <div className="flex-1 overflow-y-auto w-full custom-scrollbar pb-40 pt-10 px-4">
+      // 4. Mark streaming complete
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === botId ? { ...m, isStreaming: false } : m
+        )
+      );
+    } catch (error) {
+      // 5A-02: show error to user in Urdu
+      console.error('Generation error:', error);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === botId
+            ? {
+              ...m,
+              text: 'معذرت، کہانی بنانے میں دقت آگئی۔ براہ کرم دوبارہ کوشش کریں۔',
+              isStreaming: false,
+              isError: true,
+            }
+            : m
+        )
+      );
+    } finally {
+      setIsGenerating(false);
+      streamMsgId.current = null;
+    }
+  };
 
-                {/* Welcome Screen */}
-                {messages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-center space-y-10 animate-fade-in">
-                        <div className="bg-white/5 p-4 rounded-full mb-4 ring-1 ring-[#FF0033]/50 shadow-[0_0_15px_rgba(255,0,51,0.3)]">
-                            <Sparkles size={48} className="text-[#FF0033]" />
-                        </div>
-                        <div>
-                            <h1 className="text-4xl font-bold font-sans text-white mb-2 tracking-tight">Urdu Trigram Model</h1>
-                            <p className="text-gray-500">Next Generation Urdu Text Completion</p>
-                        </div>
+  // -----------------------------------------------------------------------
+  // Example prompts
+  // -----------------------------------------------------------------------
+  const examplePrompts = [
+    { urdu: 'ایک دفعہ کا ذکر ہے کہ ایک بادشاہ', label: 'بادشاہ کی کہانی' },
+    { urdu: 'جنگل میں ایک شیر اور چوہا', label: 'شیر اور چوہا' },
+    { urdu: 'ایک چھوٹی سی بچی تھی جس کا نام', label: 'بچی کی کہانی' },
+    { urdu: 'پرانے زمانے میں ایک دانا بوڑھا', label: 'بوڑھے کی حکمت' },
+  ];
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl px-4">
-                            {examplePrompts.map((prompt, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => handleSendMessage(prompt)}
-                                    className="group flex flex-col items-start p-4 bg-[#111111] hover:bg-[#1a1a1a] border border-[#333333] hover:border-[#FF0033] rounded-xl transition-all duration-300 text-right w-full hover:shadow-[0_0_10px_rgba(255,0,51,0.1)]"
-                                >
-                                    <span className="text-gray-200 urdu-text text-lg w-full group-hover:text-white transition-colors">{prompt}</span>
-                                    <span className="text-xs text-[#FF0033] mt-2 font-sans opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0">Generate continuation &rarr;</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
+  return (
+    <div className="flex flex-col h-full w-full max-w-4xl mx-auto relative">
+      {/* Messages container */}
+      <div className="flex-1 overflow-y-auto w-full custom-scrollbar pb-36 pt-6 px-4">
 
-                {messages.map((msg) => (
-                    <Message
-                        key={msg.id}
-                        text={msg.text}
-                        sender={msg.sender}
-                        isTyping={false}
-                    />
-                ))}
+        {/* Welcome screen */}
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-center space-y-6 pt-0 animate-fade-in relative z-10">
 
-                {isTyping && (
-                    <Message
-                        text=""
-                        sender="bot"
-                        isTyping={true}
-                    />
-                )}
-
-                <div ref={messagesEndRef} className="h-0" />
+            <div className="space-y-6">
+              <h2 className={`urdu-text text-5xl md:text-6xl font-bold tracking-wide animate-slide-up select-none
+                ${isDark ? 'text-gold text-glow-gold' : 'text-[#B8860B] drop-shadow-md'}`}>
+                باغِ کہانیاں
+              </h2>
+              <p className={`urdu-text text-xl animate-slide-up-delay max-w-lg mx-auto font-medium
+                ${isDark ? 'text-cream/60' : 'text-[#2D3748]/80'}`}>
+                اپنی کہانی شروع کریں — جادوئی الفاظ لکھیں اور دیکھیں کہانی کیسے بنتی ہے
+              </p>
             </div>
 
-            {/* Input Area (Fixed) */}
-            <div className="w-full max-w-4xl mx-auto">
-                <InputArea onSendMessage={handleSendMessage} disabled={isTyping} />
+            {/* Example prompt cards — enhanced glass tiles */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 w-full max-w-3xl px-6 animate-slide-up-delay-2">
+              {examplePrompts.map((p, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSendMessage(p.urdu)}
+                  className={`
+                    group relative p-4 rounded-2xl glass-card text-right
+                    transition-all duration-500 overflow-hidden
+                    hover:shadow-[0_12px_40px_rgba(212,175,55,0.15)]
+                    hover:-translate-y-1
+                    active:scale-[0.98] active:translate-y-0
+                    border border-transparent
+                  `}
+                  style={{ animationDelay: `${idx * 0.15}s` }}
+                >
+                  {/* Decorative corner accent */}
+                  <div className={`absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-gold/10 to-transparent rounded-bl-3xl transition-opacity duration-500
+                    ${isDark ? 'opacity-30 group-hover:opacity-50' : 'opacity-10 group-hover:opacity-20'}`} />
+
+                  {/* Shimmer overlay on hover */}
+                  <div className="absolute inset-0 shimmer-gold rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+
+                  <span className={`urdu-text text-xl font-medium block mb-1 relative z-10 transition-colors duration-300
+                    ${isDark ? 'text-cream/90 group-hover:text-gold' : 'text-[#2D3748] group-hover:text-[#B8860B]'}`}>
+                    {p.urdu}
+                  </span>
+
+                  <div className="flex items-center justify-end gap-2 relative z-10">
+                    <span className={`text-[10px] uppercase tracking-wider font-sans font-semibold transition-colors duration-300
+                      ${isDark ? 'text-gold/60 group-hover:text-gold' : 'text-[#B8860B]/60 group-hover:text-[#B8860B]'}`}>
+                      {p.label}
+                    </span>
+                    <span className={`text-xs transition-colors duration-300
+                      ${isDark ? 'text-gold/60 group-hover:text-gold' : 'text-[#B8860B]/60 group-hover:text-[#B8860B]'}`}>
+                      {cardAccents[idx]}
+                    </span>
+                  </div>
+                </button>
+              ))}
             </div>
-        </div>
-    );
+          </div>
+        )}
+
+        {/* Message list */}
+        {messages.map((msg) => (
+          <Message
+            key={msg.id}
+            text={msg.text}
+            sender={msg.sender}
+            isStreaming={msg.isStreaming}
+            isError={msg.isError}
+          />
+        ))}
+
+        <div ref={messagesEndRef} className="h-0" />
+      </div>
+
+      {/* Input area */}
+      <div className="w-full max-w-4xl mx-auto">
+        <InputArea onSendMessage={handleSendMessage} disabled={isGenerating} />
+      </div>
+    </div>
+  );
 };
 
 export default ChatInterface;

@@ -1,11 +1,12 @@
 # Trigram_LM - Folder Context
 
-This folder contains Phase III implementation: trigram language model.
+This folder is reserved for Phase III implementation: trigram language model.
 
-## Current Contents
-- `trigram_model.py`: model loader and story generator
-- `ngram_counter.py`: n-gram counting and MLE probability computation
-- `artifacts/unigrams.pkl`, `bigrams.pkl`, `trigrams.pkl`: serialized model counts
+## Planned Contents
+- n-gram counting and MLE probability computation
+- interpolation-based smoothing implementation
+- story generation pipeline (prefix -> completion until `<EOT>`)
+- serialized model artifacts and test/evaluation scripts
 
 ## Role in Project
 Uses tokenizer outputs and processed corpus to produce the core generation model.

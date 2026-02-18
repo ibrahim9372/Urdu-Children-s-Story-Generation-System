@@ -76,8 +76,8 @@ def build_indexes(
     """
     l1, l2, l3 = lambdas
 
-    vocab: List[str] = list(uni_counts.keys())
-    vocab_index: Dict[str, int] = {t: i for i, t in enumerate(vocab)}
+    vocab: List[int] = list(uni_counts.keys())
+    vocab_index: Dict[int, int] = {t: i for i, t in enumerate(vocab)}
 
     # Pre-compute unigram base: λ₃ · P_uni(t)
     base_probs: List[float] = [

@@ -24,7 +24,7 @@ class GenerateRequest(BaseModel):
     max_length: int = Field(
         150,
         ge=1,
-        le=1000,
+        le=2000,
         description="Maximum number of tokens to generate",
     )
 

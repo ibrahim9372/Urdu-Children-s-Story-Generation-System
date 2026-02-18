@@ -4,20 +4,12 @@ Story Generator — BPE-integrated, optimised, streaming-capable
 Generates Urdu stories via an interpolated trigram language model,
 using proper BPE encoding for seed tokens and sparse probability
 lookups for fast inference.
-
-Fixes addressed:
-  - 4A-01 / XA-03: standalone Backend module (no duplicate of Trigram_LM)
-  - 4A-02 / XA-01: BPE encoding integrated before trigram lookup
-  - 3A-01:         seed words are BPE-encoded, not raw + </w>
-  - 3A-02:         O(sparse) probability computation via pre-built indexes
-  - 3A-05:         <EOS>/<EOP>/<EOT> decoded to readable formatting
-  - 4A-07:         streaming generator for SSE support
 """
 
 import random
 from typing import Generator, List, Tuple
 
-from bpe_tokenizer import decode_token, encode
+from tokenizer_utils import decode_token, encode, get_tokenizer
 from model_loader import build_indexes, load_ngram_counts
 
 # ---------------------------------------------------------------------------
@@ -40,7 +32,7 @@ def _ensure_loaded() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _next_token_probs(w1: str, w2: str) -> List[float]:
+def _next_token_probs(w1: int, w2: int) -> List[float]:
     """Return interpolated P(w3 | w1, w2) for every token in vocab.
 
     Uses pre-computed unigram base plus sparse bigram/trigram updates
@@ -79,8 +71,14 @@ def _next_token_probs(w1: str, w2: str) -> List[float]:
 # Public API
 # ---------------------------------------------------------------------------
 
-_EOT_TOKENS = frozenset({"<EOT>", "<EOT></w>"})
-
+def _get_eot_ids() -> frozenset:
+    tokenizer = get_tokenizer()
+    eots = []
+    # Find all variants of EOT in vocabulary
+    for tid, tstr in tokenizer.vocab.items():
+        if tstr in ("<EOT>", "<EOT></w>"):
+            eots.append(tid)
+    return frozenset(eots)
 
 def generate_story(prefix: str, max_length: int = 150) -> Tuple[str, List[str]]:
     """Generate a complete story continuation (blocking).
@@ -88,6 +86,7 @@ def generate_story(prefix: str, max_length: int = 150) -> Tuple[str, List[str]]:
     Returns (continuation_text, seed_words).
     """
     _ensure_loaded()
+    _eot_ids = _get_eot_ids()
 
     words = prefix.strip().split()
     if len(words) < 2:
@@ -100,6 +99,9 @@ def generate_story(prefix: str, max_length: int = 150) -> Tuple[str, List[str]]:
     story_tokens = list(encoded_prefix)
     vocab = _model["vocab"]
 
+    full_text = prefix # Track text for deduplication
+    continuation_chunks = []
+
     for _ in range(max_length):
         w1, w2 = story_tokens[-2], story_tokens[-1]
         probs = _next_token_probs(w1, w2)
@@ -110,14 +112,19 @@ def generate_story(prefix: str, max_length: int = 150) -> Tuple[str, List[str]]:
         next_token = random.choices(vocab, weights=probs, k=1)[0]
         story_tokens.append(next_token)
 
-        if next_token in _EOT_TOKENS:
+        if next_token in _eot_ids:
             break
 
-    # Decode only the continuation (tokens generated beyond the prefix)
-    generated = story_tokens[len(encoded_prefix) :]
-    decoded = "".join(decode_token(t) for t in generated)
-    cleaned = " ".join(decoded.split())
+        decoded = decode_token(next_token)
+        if decoded:
+            # Deduplication logic: If we already have a period, don't add another one immediately
+            if decoded.strip() == "۔" and full_text.strip().endswith("۔"):
+                continue
+            
+            continuation_chunks.append(decoded)
+            full_text += decoded
 
+    cleaned = " ".join("".join(continuation_chunks).split())
     return cleaned, words[:2]
 
 
@@ -130,6 +137,7 @@ def generate_story_streaming(
     already typed it.
     """
     _ensure_loaded()
+    _eot_ids = _get_eot_ids()
 
     words = prefix.strip().split()
     if len(words) < 2:
@@ -141,6 +149,8 @@ def generate_story_streaming(
 
     story_tokens = list(encoded_prefix)
     vocab = _model["vocab"]
+    
+    current_text = prefix
 
     for _ in range(max_length):
         w1, w2 = story_tokens[-2], story_tokens[-1]
@@ -152,9 +162,14 @@ def generate_story_streaming(
         next_token = random.choices(vocab, weights=probs, k=1)[0]
         story_tokens.append(next_token)
 
-        if next_token in _EOT_TOKENS:
+        if next_token in _eot_ids:
             break
 
         decoded = decode_token(next_token)
         if decoded:
+            # Deduplication logic: prevents double "۔" at the end
+            if decoded.strip() == "۔" and current_text.strip().endswith("۔"):
+                continue
+                
+            current_text += decoded
             yield decoded

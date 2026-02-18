@@ -78,7 +78,7 @@ export const generateTextStream = async (
       try {
         const parsed = JSON.parse(payload);
         if (parsed.error) throw new Error(parsed.error);
-        if (parsed.token) onToken(parsed.token);
+        if (parsed.token) await onToken(parsed.token);
       } catch (e) {
         if (e.message && !e.message.startsWith("Unexpected"))
           throw e;

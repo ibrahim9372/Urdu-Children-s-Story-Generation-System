@@ -32,7 +32,7 @@ const ChatInterface = () => {
   // -----------------------------------------------------------------------
   // Send & stream
   // -----------------------------------------------------------------------
-  const handleSendMessage = async (text) => {
+  const handleSendMessage = async (text, maxTokens = 150) => {
     // 1. Append user message
     const userMsg = {
       id: uid(),
@@ -56,14 +56,17 @@ const ChatInterface = () => {
     setMessages((prev) => [...prev, botMsg]);
 
     try {
-      // 3. Stream tokens in via SSE (fixes 5A-04)
-      await generateTextStream(text, (token) => {
+      const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+
+      await generateTextStream(text, async (token) => {
+        // Slow down streaming intentionally for a better visual experience
+        await delay(50);
         setMessages((prev) =>
           prev.map((m) =>
             m.id === botId ? { ...m, text: m.text + token } : m
           )
         );
-      });
+      }, maxTokens);
 
       // 4. Mark streaming complete
       setMessages((prev) =>

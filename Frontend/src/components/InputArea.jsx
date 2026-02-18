@@ -15,13 +15,14 @@ import { useTheme } from '../context/ThemeContext';
 const InputArea = ({ onSendMessage, disabled }) => {
   const { isDark } = useTheme();
   const [input, setInput] = useState('');
+  const [maxTokens, setMaxTokens] = useState(150);
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (input.trim() && !disabled) {
-      onSendMessage(input);
+      onSendMessage(input, maxTokens);
       setInput('');
     }
   };
@@ -49,6 +50,40 @@ const InputArea = ({ onSendMessage, disabled }) => {
     <div className={`absolute bottom-0 left-0 w-full bg-gradient-to-t from-transparent via-transparent to-transparent pt-6 pb-6 px-4 z-20 transition-colors duration-500
       ${isDark ? 'from-palace-night via-palace-night/95' : 'from-[#FFFDF5] via-[#FFFDF5]/95'}`}>
       <div className="md:max-w-2xl lg:max-w-[38rem] xl:max-w-3xl mx-auto w-full relative">
+
+        {/* Token Slider (fixes Request "slider in the prompt box") */}
+        <div className={`mb-3 px-2 flex items-center justify-between gap-4 animate-fade-in`}>
+          <div className="flex items-center gap-3 flex-1">
+            <span className={`text-[10px] uppercase tracking-widest font-sans font-bold whitespace-nowrap ${isDark ? 'text-gold/40' : 'text-[#B8860B]/40'}`}>
+              طوالت (ٹکنز):
+            </span>
+            <input
+              type="range"
+              min="100"
+              max="2000"
+              step="50"
+              value={maxTokens}
+              onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+              disabled={disabled}
+              className={`
+                w-full h-1.5 rounded-lg appearance-none cursor-pointer
+                bg-gradient-to-r from-gold/10 via-gold/30 to-gold/10
+                accent-gold hover:accent-gold-light transition-all
+                disabled:opacity-30 disabled:cursor-not-allowed
+              `}
+            />
+          </div>
+          <span className={`
+            min-w-[48px] text-center px-2 py-0.5 rounded-md text-xs font-mono font-bold border
+            ${isDark
+              ? 'bg-gold/5 border-gold/20 text-gold'
+              : 'bg-[#B8860B]/5 border-[#B8860B]/20 text-[#B8860B]'
+            }
+          `}>
+            {maxTokens}
+          </span>
+        </div>
+
         <form
           onSubmit={handleSubmit}
           className={`

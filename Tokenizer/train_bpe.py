@@ -17,8 +17,8 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR.parent / "Data"
 ARTIFACTS_DIR = BASE_DIR / "artifacts"
 
-# Hardcoded path as requested by User
-CORPUS_PATH = Path(r"C:\Users\hassa\OneDrive\Desktop\sem6\NLP\Assignement 1\urdu_tokenizer_training2.txt")
+# Corpus path relative to project structure
+CORPUS_PATH = DATA_DIR / "urdu_tokenizer_training.txt"
 
 # If not found (e.g. on another machine), warn but try to proceed if possible or fail
 if not CORPUS_PATH.exists():

@@ -12,10 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the Backend code
 COPY Backend/ .
 
-# IMPORTANT: Copy the model artifacts from parent directories
+# IMPORTANT: Copy the model logic and artifacts from parent directories
 # Note: When building, the "context" should be the root of the project
-COPY Tokenizer/artifacts /app/Tokenizer/artifacts
-COPY Trigram_LM/artifacts /app/Trigram_LM/artifacts
+COPY Tokenizer/ /app/Tokenizer/
+COPY Trigram_LM/ /app/Trigram_LM/
 
 # Expose the port FastAPI runs on
 EXPOSE 8000

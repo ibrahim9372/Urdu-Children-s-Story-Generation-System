@@ -44,6 +44,11 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 
+@app.get("/")
+async def root():
+    return {"message": "Urdu Story Generator API is running. Use /health for status or /generate for stories."}
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}

@@ -77,7 +77,7 @@ const Header = () => {
       {/* Center Text Container - Absolute centered to ignore lanterns */}
       <div className="absolute inset-0 flex flex-col items-center justify-center pt-8 pointer-events-none">
         <h1 className="urdu-text text-3xl md:text-5xl text-gold tracking-wide text-glow-gold select-none drop-shadow-md pb-8 text-center">
-          چاندنی محل
+          قلم و خیال
         </h1>
         <p className={`text-[10px] md:text-xs font-sans tracking-[0.2em] uppercase mt-0 transition-colors duration-500 font-medium text-center
           ${isDark ? 'text-cream/60' : 'text-[#2D3748]/70'}`}>

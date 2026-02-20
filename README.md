@@ -6,7 +6,7 @@
 
 ## 🌌 Overview
 
-This project is a complete end-to-end pipeline for Urdu story generation. It spans from raw data scraping to a production-ready web application. The system features a "Moonlit Palace" (چاندنی محل) themed interface that provides a magical, word-by-word streaming experience as the stories come to life.
+This project is a complete end-to-end pipeline for Urdu story generation. It spans from raw data scraping to a production-ready web application. The system features a "Moonlit Palace"  themed interface that provides a magical, word-by-word streaming experience as the stories come to life.
 
 ### ✨ Key Features
 - **Custom BPE Tokenizer**: Built from scratch to handle the unique linguistic nuances of Urdu.
@@ -83,9 +83,6 @@ The system is designed to be deployed effortlessly:
 *   **Backend**: Hosted on [Render](https://render.com) using the provided `Backend/Dockerfile`.
 *   **Frontend**: Hosted on [Vercel](https://vercel.com) with native Vite support and `vercel.json` routing.
 *   **CI/CD**: Every push to `main` triggers a GitHub Action to verify build integrity.
-
-> [!TIP]
-> For a step-by-step cloud setup, check the [Deployment Guide](Deployment/DEPLOYMENT_GUIDE.md).
 
 ---
 
